@@ -1,0 +1,3 @@
+[submodule "flame_lib"]
+	path = flame_lib
+	url = https://github.com/nmfisher/flame_lib.git

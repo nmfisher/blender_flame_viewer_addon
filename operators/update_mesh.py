@@ -3,7 +3,6 @@
 import numpy as np
 import bpy
 
-from .. import flame_numpy
 from .load_model import ensure_cache, _flame_to_blender_axes
 from .update_bones import update_bones
 from .anchor_markers import update_markers
@@ -31,8 +30,8 @@ def _read_overflow(scene, key, length):
 
 def update_mesh(context):
     """Re-evaluate FLAME model and push vertices to the mesh object."""
-    model, _ = ensure_cache(context)
-    if model is None:
+    flame, _ = ensure_cache(context)
+    if flame is None:
         return
 
     obj = bpy.data.objects.get(MESH_NAME)
@@ -57,21 +56,19 @@ def update_mesh(context):
     expr_full[10:] = _read_overflow(scene, EXPR_OVERFLOW_KEY,
                                     EXPR_OVERFLOW_LEN)
 
-    jaw = np.array(list(scene.flame_viewer_jaw), dtype=np.float64)
-    neck = np.array(list(scene.flame_viewer_neck), dtype=np.float64)
-    global_rot = np.array(list(scene.flame_viewer_global), dtype=np.float64)
-    eye_l = np.array(list(scene.flame_viewer_eye_l), dtype=np.float64)
-    eye_r = np.array(list(scene.flame_viewer_eye_r), dtype=np.float64)
+    eye_pose = np.concatenate([
+        np.array(list(scene.flame_viewer_eye_l), dtype=np.float64),
+        np.array(list(scene.flame_viewer_eye_r), dtype=np.float64),
+    ])
 
-    transl = np.zeros(3, dtype=np.float64)
-
-    pose = np.zeros(6, dtype=np.float64)
-    pose[:3] = global_rot
-    pose[3:] = jaw
-    eye_pose = np.concatenate([eye_l, eye_r])
-
-    verts = flame_numpy.flame_forward(
-        shape_full, expr_full, pose, neck, transl, model, eye_pose=eye_pose)
+    verts = flame(
+        shape=shape_full,
+        expr=expr_full,
+        global_pose=np.array(list(scene.flame_viewer_global), dtype=np.float64),
+        jaw_pose=np.array(list(scene.flame_viewer_jaw), dtype=np.float64),
+        neck_pose=np.array(list(scene.flame_viewer_neck), dtype=np.float64),
+        eye_pose=eye_pose,
+    )
 
     # Convert to Blender axes
     verts_blender = _flame_to_blender_axes(verts)

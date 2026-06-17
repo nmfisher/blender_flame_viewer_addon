@@ -3,7 +3,7 @@
 import os
 import bpy
 
-from .. import flame_numpy
+from ..flame_lib import FlameModel
 
 MESH_NAME = "FLAME_Viewer"
 
@@ -14,14 +14,14 @@ _cache_path = None
 
 
 def get_cache():
-    """Return (model_data, cache_path) or (None, None) if not loaded."""
+    """Return (flame, cache_path) or (None, None) if not loaded."""
     return _flame_cache, _cache_path
 
 
 def ensure_cache(context):
-    """Return (model_data, cache_path), reloading from the scene's stored
-    pkl path if the in-memory cache was lost (e.g. after a Blender restart).
-    Returns (None, None) if no path is stored or the file is missing.
+    """Return (flame, cache_path), reloading from the scene's stored pkl path
+    if the in-memory cache was lost (e.g. after a Blender restart). Returns
+    (None, None) if no path is stored or the file is missing.
     """
     global _flame_cache, _cache_path
     if _flame_cache is not None:
@@ -30,7 +30,7 @@ def ensure_cache(context):
     if not path or not os.path.isfile(path):
         return None, None
     try:
-        _flame_cache = flame_numpy.load_flame_model(path)
+        _flame_cache = FlameModel(path)
         _cache_path = path
     except Exception:
         return None, None
@@ -77,19 +77,19 @@ class FLAMEVIEWER_OT_LoadModel(bpy.types.Operator):
             return {"CANCELLED"}
 
         try:
-            model = flame_numpy.load_flame_model(path)
+            flame = FlameModel(path)
         except Exception as e:
             self.report({"ERROR"}, f"Failed to load PKL: {e}")
             return {"CANCELLED"}
 
-        _flame_cache = model
+        _flame_cache = flame
         _cache_path = path
 
-        n_verts = model["v_template"].shape[0]
-        n_faces = model["f"].shape[0]
+        n_verts = flame.v_template.shape[0]
+        n_faces = flame.faces.shape[0]
 
         # Convert to Blender axes
-        v_blender = _flame_to_blender_axes(model["v_template"])
+        v_blender = _flame_to_blender_axes(flame.v_template)
 
         # Remove old mesh if it exists
         old = bpy.data.objects.get(MESH_NAME)
@@ -101,7 +101,7 @@ class FLAMEVIEWER_OT_LoadModel(bpy.types.Operator):
 
         # Create mesh
         mesh = bpy.data.meshes.new(MESH_NAME)
-        mesh.from_pydata(v_blender.tolist(), [], model["f"].tolist())
+        mesh.from_pydata(v_blender.tolist(), [], flame.faces.tolist())
         mesh.update()
 
         obj = bpy.data.objects.new(MESH_NAME, mesh)
